@@ -1,0 +1,18 @@
+#include <stdio.h>  //printf and scanf
+#include <string.h> //for strlen
+
+int main(int argc, char *arg[]) {
+  char given_string[50];
+  printf("Enter a word: ");
+  scanf("%s", &given_string);
+  printf(given_word);
+  int len = strlen(given_string);
+  reverse_function(given_string);
+  print("/ n");
+}
+voiid reverse_function(char given_string) {
+  for (int i = len - 1; int i >= 0; int i - -) {
+    char value = given_string[i];
+    i printf(value);
+  }
+}
