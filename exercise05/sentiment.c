@@ -1,6 +1,15 @@
 // Paola O'Rourke
 // Worked w/ Kiera
 
+// I can conclude that the program never reaches the 2nd function or around this
+// area since it never printed here or broke in gdb. The bug must be in the
+// first function causing it to be stuck in a loop or it does not properly take
+// in input.--> fixed, never checked for if word existed before.
+//
+// Current problem: returns 0.000, I deduce that this error is in an improperly
+// contructed first function. It is also notable that dump sentiments does not
+// affect running it. With this I know that it's the first function.
+
 #include "map.h"
 #include <ctype.h>
 #include <stdio.h>
@@ -62,6 +71,10 @@ void dump_sentiments() { map_apply(sentiments, print_map_entry); }
 //
 // Modifies sentiments map.
 void build_sentiment_map(FILE *f) {
+  if (!f) {
+    fprintf(stderr, "Invalid pointer\n");
+    exit(1);
+  }
   if (sentiments) {
     free_map_values();
     map_free(&sentiments);
@@ -72,96 +85,98 @@ void build_sentiment_map(FILE *f) {
   int line_no = -1;
   while (fgets(buff, BUFFER_SIZE, f) != NULL) {
     line_no++;
-
+    // allocates for comments
     if (buff[0] == '#') {
       continue;
     }
 
-    char *pos = strtok(buff, "\t");
+    char *pos = strtok(buff, "\t"); // the \t splits on tab
     char *id = strtok(NULL, "\t");
     char *pos_score = strtok(NULL, "\t");
     char *neg_score = strtok(NULL, "\t");
-    // char *words = strtok(NULL, "\t"); //dictionary for all words
-    char words[14];                 // size of the array
     char *word = strtok(buff, " "); // token for each word
-    words[0] = *word;               // no star bc already address/ pointer
     char *definition = strtok(NULL, "\t");
-    // use STRTOK on while loop
-    while (word != NULL) {
+
+    // for scores later
+    double positive_score = atof(pos_score);
+    double negative_score = atof(neg_score);
+    char *buff = word;
+    while (buff != NULL && *buff != '\0') {
       char *word = strtok(buff, " "); // splitting up buff = "I hate mondays" on
                                       // the space
       char *pound_index = strchr(buff, '#');
       if (pound_index != NULL) {
-        *pound_index = '\0';
+        snprintf(word, pound_index - buff + 1, "%s", buff);
+      } else {
+        break; // for those without #
       }
-    }
-    // fix this maybe within while of next line
-    // index = variable that holds index
-    while (word) {
-      double *tempScore = malloc(sizeof(double));
-      *tempScore = atof(pos_score) - atof(neg_score);
+      lower_and_strip(word);
+      sentiment_t *senti;
 
-      // Add the word and its sentiment score to the map
-      map_put(sentiments, word, tempScore);
-      // printf("%s", word);
-      // look at word as a string pointer
-      // debug thing-  printf("%s", word); //
+      int inMap = map_get(sentiments, word, (void **)&senti);
+      // inmap returns non zero if found
+      if (inMap) { // if inmap found it
+        senti->count++;
+        senti->pos += (positive_score - senti->pos) / senti->count;
+        senti->neg += (negative_score - senti->neg) / senti->count;
+      } else {
+        senti = (sentiment_t *)malloc(sizeof(sentiment_t));
+        senti->pos = positive_score;
+        senti->neg = negative_score;
+        senti->count = 1;
+        map_put(sentiments, word, senti);
+      }
 
       // Get the next word from the list
-      word = strtok(NULL, " ");
+      word = NULL;
+      buff += strspn(buff, "\t");
+      buff += strspn(buff, "\t");
     }
   }
 }
-// POS<TAB>ID<TAB>PosScore<TAB>NegScore<TAB>Word#n Word#n Word#n
-// ...<TAB>Definition OR # this line is a comment since it starts with #
 
 void sentiment_stdin() {
-  char buffer[BUFFER_SIZE];
+  char buffer[BUFFER_SIZE]; // initial user input
   char input[BUFFER_SIZE];
-  char *space = " ";
+  char *space = " "; // to split on space
   int mean;
-  int new_value = 0;
+  int new_value; // for the mean calculation
   char *token;
-  int count = 0;
-  float sum = 0;
+  double count; // number of words-- not sure this works/ reaches point where
+                // can be utilized
+  double the_mean = 0.0;
 
+  // checks buffer is not null
   while (fgets(buffer, BUFFER_SIZE, stdin) != NULL) {
+    input[strlen(input) - 1] = '\0'; // this part could not be needed-- but
+                                     // takes off Null terminator of input
+    size_t buffer_len = strlen(buffer);
+    if (buffer[buffer_len - 1] == '\n') { // single quotes bc string literal
+
+      buffer[buffer_len - 1] = '\0';
+    }
     strncpy(input, buffer, BUFFER_SIZE);
-    input[strlen(input) - 1] = '\0';
-
-    token = strtok(input, space); // each word
-    printf("%s /n", token);       //
-    while (token) {
-      count += 1;
-      lower_and_strip(token);
+    double the_mean = 0;
+    char *token = strtok(input, space); // splits input based on space
+    // token not null                              //
+    while (token) {           // while token, element in buffer, is not null
+      count += 1;             // used for mean later
+      lower_and_strip(token); // lowercases all characters of token
       sentiment_t *senti;
-      int in_map = map_get(sentiments, token, (void **)&senti);
 
+      int in_map = map_get(sentiments, token, (void **)&senti);
       if (in_map) {
         new_value = senti->pos + senti->neg;
-        mean = mean + (new_value - mean) / count;
-
-        // printf("%s: %c", buffer, mean);
+        the_mean = the_mean + (new_value - mean) /
+                                  count; // count;- checking whether better
       }
-      token = strtok(NULL, space);
+
+      token = strtok(NULL, space); // goes to next one regardless
     }
-    printf("%s: %c \n", buffer, mean);
-    // else {
-    //  printf("%s: %f\n", buffer, 0.0);
+    printf("%s: %f \n", buffer, the_mean); // should print
   }
-  count = 0;
-  sum = 0.0;
+  count = 0; // resets count to see how many words are in the buffer for mean
 }
-//}
-
-// lower_and_strip - use to tokenize word when it has the value
-// new_mean = old_mean + (new_value - old_mean) / count    
-// lower_and_strip - use to tokenize word when it has the value
-// new_mean = old_mean + (new_value - old_mean) / count
-
-// Clean up - dump sentiments?
-
-// stop here
 
 void usage(char *name) {
   printf("Usage: %s <sentiment_file.txt>\n", name);
@@ -179,6 +194,7 @@ int main(int argc, char **argv) {
     perror("fopen");
     exit(1);
   }
+
   fprintf(stderr, "loading sentiment map...");
   // Build the map of sentiments...
   build_sentiment_map(f);
